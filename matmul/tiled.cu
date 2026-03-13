@@ -1,4 +1,13 @@
 // Compile with: hipcc matmul/tiled.cu -o tiled
+/*
+Optimization techniques for GPU matrix multiplication:
+Naive: each thread reads full row/column from global memory → O(MK + KN) global reads per block
+Tiled: shared memory tiles, TILE×TILE block → TILE× reduction in global reads
+Coarsened: each thread computes multiple outputs → bigger effective tile, more reuse, accumulators in registers
+Pipelined: double/triple buffer to overlap load and compute → hide memory latency
+Vectorized loads + bank conflict avoidance: maximize memory throughput
+Tensor Cores: replace scalar FMA loop with hardware matrix instructions → 10-16× throughput jump
+*/
 
 #include <stdio.h>
 #include <hip/hip_runtime.h>
@@ -36,6 +45,10 @@ __global__ void tiled_matmul(float* C, const float* A, const float* B, const int
         if (row < M && tile_offset + threadIdx.x < K)
             // [threadIdx.y][threadIdx.x] is local adressing in the block
             // Load A[row][tile_offset + threadIdx.x] into shared memory
+            // For a 16x16 tile we are loading 2 rows of 16 elements, 
+            // for each row the only thing that changes across threads in a warp is threadIdx.x.
+            // But once we switch to the next row there is gap. So this requires 2 memory transactions to load a full warp.
+            // a 32x8 tile will solve this.
             As[threadIdx.y][threadIdx.x] = A[(row * K) + (tile_offset + threadIdx.x)];
         else
             As[threadIdx.y][threadIdx.x] = 0.0f;
@@ -43,6 +56,9 @@ __global__ void tiled_matmul(float* C, const float* A, const float* B, const int
         if (tile_offset + threadIdx.y < K && col < N)
             // [threadIdx.y][threadIdx.x] is local adressing in the block
             // Load B[tile_offset + threadIdx.y][col] into shared memory
+            // For a 16x16 tile we are loading 2 columns of 16 elements, 
+            // for each column the only thing that changes across threads in a warp is col = blockIdx.x * TILE + threadIdx.x, 
+            // so again two memory transactions are required to load a full warp. A 32x8 tile will solve this.
             Bs[threadIdx.y][threadIdx.x] = B[((tile_offset + threadIdx.y) * N) + col];
         else
             Bs[threadIdx.y][threadIdx.x] = 0.0f;
@@ -52,6 +68,8 @@ __global__ void tiled_matmul(float* C, const float* A, const float* B, const int
  
         // Accumulate partial dot product from shared memory for this tile
         for (int k = 0; k < TILE; k++) {
+            // reading from As can potentially cause bank conflicts, 
+            // but since all threads in a warp read the same k value, they will all access the same column of As, so there will be no bank conflicts.
             sum += As[threadIdx.y][k] * Bs[k][threadIdx.x];
         }
         
