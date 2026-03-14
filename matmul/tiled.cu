@@ -144,6 +144,5 @@ int main() {
     hipFree(d_A);
     hipFree(d_B);
     hipFree(d_C);
-
     return 0;    
 };

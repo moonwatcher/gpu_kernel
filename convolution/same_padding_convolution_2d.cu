@@ -96,4 +96,9 @@ int main() {
         }
         printf("\n");
     }
+
+    hipFree(d_input);
+    hipFree(d_output);
+    hipFree(d_filter);
+    return 0;
 };

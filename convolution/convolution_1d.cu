@@ -82,4 +82,9 @@ int main() {
         printf("%f ", h_output[i]);
     }
     printf("\n");
+
+    hipFree(d_input);
+    hipFree(d_output);
+    hipFree(d_filter);
+    return 0;
 };

@@ -11,6 +11,9 @@ Run: ./valid_convolution_2d
 #include <hip/hip_runtime.h>
 
 #define TILE 4
+
+// The size of the filter is 2 * HALO + 1
+// This way the filter is always of odd size and has a well defined center pixel
 #define HALO 1
 
 __global__ void valid_convolution_2d(float* output, const float* input, const float* filter, int width, int height) {
@@ -54,7 +57,6 @@ int main() {
     constexpr int in_height = 11;
     constexpr int out_width = in_width - 2 * HALO;
     constexpr int out_height = in_height - 2 * HALO;
-
     constexpr int filter_size = 2 * HALO + 1;
     constexpr int shared_size = (TILE + 2 * HALO) * (TILE + 2 * HALO);
 
@@ -109,4 +111,9 @@ int main() {
     if (valid) {
         printf("All outputs are correct!\n");
     }
+
+    hipFree(d_input);
+    hipFree(d_output);
+    hipFree(d_filter);
+    return 0;
 };

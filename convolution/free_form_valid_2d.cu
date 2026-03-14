@@ -116,4 +116,5 @@ int main() {
     hipFree(d_input);
     hipFree(d_output);
     hipFree(d_filter);
+    return 0;
 };
