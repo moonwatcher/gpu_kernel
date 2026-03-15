@@ -2,6 +2,7 @@
 valid, no padding 2D convolution
 Compute only outputs where the filter fully overlaps the input.
 Output size is (width - filter_width + 1) x (height - filter_height + 1).
+Buffer size is (tile + filter_width - 1) x (tile + filter_height - 1) to ensure all necessary input values for the tile are loaded.
 
 Compile: hipcc convolution/valid_convolution_2d.cu -o valid_convolution_2d
 Run: ./valid_convolution_2d
@@ -23,12 +24,20 @@ __global__ void valid_convolution_2d (
     int filter_height) {
 
     extern __shared__ float buffer[];
+
+    /* Buffer size needs to cover all necessary input values for the tile */
     const int buffer_width = tile + filter_width - 1;
     const int buffer_height = tile + filter_height - 1;
+
+    /* Output size for valid convolution is smaller than input */
     const int out_width = width - filter_width + 1;
     const int out_height = height - filter_height + 1; 
 
-    // Load tile into shared memeory buffer
+    /*  Load tile into shared memory buffer 
+        The outer loops are only used by the first few threads to load the extra elements needed for the convolution.
+        Both buffer and input indexing is based on the buffer_row and buffer_col, which are based on the thread block indexing.
+
+    */
     for(int buffer_row = threadIdx.y; buffer_row < buffer_height; buffer_row += tile) {
         for(int buffer_col = threadIdx.x; buffer_col < buffer_width; buffer_col += tile) {
             int in_row = blockIdx.y * blockDim.y + buffer_row;
@@ -38,7 +47,11 @@ __global__ void valid_convolution_2d (
     }
     __syncthreads();
 
-    // compute convolution
+    /*  compute convolution sum for the output element corresponding to this thread
+        filter indexing is just based on the filter dimensions.
+        buffer indexing is the same as the filter indexing, but offset by the thread's position in the tile (threadIdx.x and threadIdx.y)
+        to get the correct input values for this output element.
+    */
     float sum = 0.0f;
     for(int row = 0; row < filter_height; row++) {
         for(int col = 0; col < filter_width; col++) {
