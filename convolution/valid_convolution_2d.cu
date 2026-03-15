@@ -13,7 +13,7 @@ Run: ./valid_convolution_2d
 // #define tile 32
 
 template<int tile>
-__global__ void free_form_valid_convolution_2d (
+__global__ void valid_convolution_2d (
     float* output,
     const float* input, 
     const float* filter, 
@@ -97,7 +97,7 @@ int main() {
 
     dim3 block(tile, tile);
     dim3 grid((out_width + tile - 1) / tile, (out_height + tile - 1) / tile);
-    free_form_valid_convolution_2d<tile><<<grid, block, buffer_size * sizeof(float)>>>(
+    valid_convolution_2d<tile><<<grid, block, buffer_size * sizeof(float)>>>(
         d_output, 
         d_input, 
         d_filter, 
