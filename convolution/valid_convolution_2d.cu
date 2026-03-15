@@ -24,15 +24,11 @@ __global__ void valid_convolution_2d(float* output, const float* input, const fl
     const int out_width = width - 2 * HALO;
     const int out_height = height - 2 * HALO;
 
-    for (int dy = threadIdx.y; dy < buffer_width; dy += TILE) {
-        for (int dx = threadIdx.x; dx < buffer_width; dx += TILE) {
-            int in_row = blockIdx.y * blockDim.y + dy;
-            int in_col = blockIdx.x * blockDim.x + dx;
-            if(in_row >= 0 && in_row < height && in_col >= 0 && in_col < width) {
-                buffer[dy * buffer_width + dx] = input[in_row * width + in_col];
-            } else {
-                buffer[dy * buffer_width + dx] = 0.0f;
-            }
+    for (int buffer_row = threadIdx.y; buffer_row < buffer_width; buffer_row += TILE) {
+        for (int buffer_col = threadIdx.x; buffer_col < buffer_width; buffer_col += TILE) {
+            int in_row = blockIdx.y * blockDim.y + buffer_row;
+            int in_col = blockIdx.x * blockDim.x + buffer_col;
+            buffer[buffer_row * buffer_width + buffer_col] = input[in_row * width + in_col];
         }
     }
 

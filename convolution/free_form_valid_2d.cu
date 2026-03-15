@@ -25,11 +25,7 @@ __global__ void free_form_valid_convolution_2d (
         for(int buffer_col = threadIdx.x; buffer_col < buffer_width; buffer_col += TILE) {
             int in_row = blockIdx.y * blockDim.y + buffer_row;
             int in_col = blockIdx.x * blockDim.x + buffer_col;
-            if(in_row >= 0 && in_row < height && in_col >= 0 && in_col < width) {
-                buffer[buffer_row * buffer_width + buffer_col] = input[in_row * width + in_col];
-            } else {
-                buffer[buffer_row * buffer_width + buffer_col] = 0.0f;
-            }
+            buffer[buffer_row * buffer_width + buffer_col] = input[in_row * width + in_col];
         }
     }
     __syncthreads();
@@ -51,8 +47,8 @@ __global__ void free_form_valid_convolution_2d (
 };
 
 int main() {
-    constexpr int in_width = 8;
-    constexpr int in_height = 8;
+    constexpr int in_width = 17;
+    constexpr int in_height = 13;
     constexpr int filter_width = 3;
     constexpr int filter_height = 5;
     constexpr int width_halo = filter_width / 2;
@@ -105,6 +101,20 @@ int main() {
     );
 
     hipMemcpy(h_output, d_output, out_width * out_height * sizeof(float), hipMemcpyDeviceToHost);
+
+    //Valid convolution with all 1s input and average filter should give 1.0 for all outputs
+    bool valid = true;
+    for(int row = 0; row < out_height; row++) {
+        for(int col = 0; col < out_width; col++) {
+            if (h_output[row * out_width + col] != 1.0f) {
+                valid = false;
+                printf("Error at output (%d, %d): expected 1.0, got %f\n", row, col, h_output[row * out_width + col]);
+            }
+        }
+    }
+    if (valid) {
+        printf("All outputs are correct!\n");
+    }
 
     for(int row = 0; row < out_height; row++) {
         for(int col = 0; col < out_width; col++) {
